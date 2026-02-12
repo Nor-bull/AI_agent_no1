@@ -1,4 +1,3 @@
-
 import json
 import os
 from openai import OpenAI
@@ -15,12 +14,14 @@ def calculate(expression: str):
 tools = [
     {
         "type": "function",
-        "name": "calculate",
-        "description": "Vyhodnotí matematický výraz a vrátí výsledek.",
-        "parameters": {
-            "type": "object",
-            "properties": {"expression": {"type": "string"}},
-            "required": ["expression"]
+        "function": {
+            "name": "calculate",
+            "description": "Vyhodnotí matematický výraz a vrátí výsledek.",
+            "parameters": {
+                "type": "object",
+                "properties": {"expression": {"type": "string"}},
+                "required": ["expression"]
+            }
         }
     }
 ]
@@ -31,46 +32,50 @@ available_functions = {
 
 
 def run_with_tool(messages, model="gpt-4.1-nano"):
-    response = client.responses.create(
+    response = client.chat.completions.create(
         model=model,
-        input=messages[-1]["content"],
+        messages=messages,
         tools=tools,
         tool_choice="required"
     )
 
-    tool_called = False
-    for item in response.output:
-        if item.type == "tool_call":
-            tool_called = True
-            args = json.loads(item.arguments)
+    assistant_message = response.choices[0].message
+    tool_calls = assistant_message.tool_calls
+
+    if tool_calls:
+        for tool_call in tool_calls:
+            args = json.loads(tool_call.function.arguments)
             expression = args["expression"]
-            tool_id = item.id
+            tool_id = tool_call.id
 
-            function_response = available_functions[item.name](expression)
+            function_response = available_functions[tool_call.function.name](expression)
 
-            final_response = client.responses.create(
+            follow_up_messages = messages + [
+                assistant_message,
+                {
+                    "role": "tool",
+                    "tool_call_id": tool_id,
+                    "content": json.dumps(function_response)
+                }
+            ]
+
+            final_response = client.chat.completions.create(
                 model=model,
-                input=[
-                    {"role": "user", "content": messages[-1]["content"]},
-                    {
-                        "type": "tool_result",
-                        "tool_call_id": tool_id,
-                        "content": json.dumps(function_response)
-                    }
-                ],
+                messages=follow_up_messages,
                 tools=tools
             )
 
             print("=== Odpoveď LLM po použití toolu ===")
-            print(final_response.output_text)
+            print(final_response.choices[0].message.content)
 
-    if not tool_called:
+    else:
         print("=== Model odpovedal bez toolu ===")
-        print(response.output_text)
+        print(assistant_message.content)
+
 
 messages = [
     {"role": "system", "content": "You are a helpful AI assistant."},
-    {"role": "user", "content": "Kolik je (12 + 8) * 3?"}
+    {"role": "user", "content": "Kolik je (x + y) * z?"}
 ]
 
 run_with_tool(messages)
