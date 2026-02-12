@@ -9,11 +9,6 @@ client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
 
 def calculate(expression: str):
-    """
-    Tento Python funkcia tu NEVYKONÁVA skutočný výpočet,
-    iba vracia expression späť do LLM ako 'tool result'.
-    """
-    # Tu môžeš simulovať výsledok alebo vrátiť string "(simulovaný výpočet)"
     return {"expression": expression, "result": f"(LLM simuluje výpočet {expression})"}
 
 
@@ -35,12 +30,12 @@ available_functions = {
 }
 
 
-def run_with_tool(messages, model="gpt-4.1-mini"):
+def run_with_tool(messages, model="gpt-4.1-nano"):
     response = client.responses.create(
         model=model,
         input=messages[-1]["content"],
         tools=tools,
-        tool_choice="required"  # prinúti model použiť tool
+        tool_choice="required"
     )
 
     tool_called = False
